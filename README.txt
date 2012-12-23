@@ -1,1 +1,1 @@
-Code for building a DIY MIDI keyboard, out of a toy keyboard and simple parts. Still under development.
+Code for building a DIY MIDI keyboard, out of a toy keyboard and simple parts. Still under development.This project is inspired by certain methods used in https://github.com/toroidal-code/Midi-Keyboard
