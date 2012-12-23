@@ -1,0 +1,1 @@
+Code for building a DIY MIDI keyboard, out of a toy keyboard and simple parts. Still under development.
