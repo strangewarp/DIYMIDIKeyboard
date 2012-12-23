@@ -22,14 +22,6 @@ byte octavecheck = 0;
 byte channelcheck = 0;
 byte commandcheck = 0;
 byte velocitycheck = 0;
-int octaveold = 0;
-int channelold = 0;
-int commandold = 0;
-int velocityold = 0;
-int octavenew = 0;
-int channelnew = 0;
-int commandnew = 0;
-int velocitynew = 0;
 
 byte activebutton = 0;
 byte saves[(butrows * butcols) - 2][4];
@@ -101,38 +93,17 @@ void loop() {
   commandcheck = commandpot.getSector();
   velocitycheck = velocitypot.getSector();
   
-  octavenew = octavepot.getValue();
-  channelnew = channelpot.getValue();
-  commandnew = commandpot.getValue();
-  velocitynew = velocitypot.getValue();
-  
-  if (
-  (octavecheck != octave)
-  && (abs(octaveold - octavenew) > 32)
-  ) {
+  if (octavecheck != octave) {
     octave = octavecheck;
-    octaveold = octavenew;
     setBinaryLEDs(octave);
-  } else if (
-  (channelcheck != channel)
-  && (abs(channelold - channelnew) > 32)
-  ) {
+  } else if (channelcheck != channel) {
     channel = channelcheck;
-    channelold = channelnew;
     setBinaryLEDs(channel);
-  } else if (
-  (commandcheck != command)
-  && (abs(commandold - commandnew) > 32)
-  ) {
+  } else if (commandcheck != command) {
     command = commandcheck;
-    commandold = commandnew;
     setDecimalLEDs(command);
-  } else if (
-  (velocitycheck != velocity)
-  && (abs(velocityold - velocitynew) > 6)
-  ) {
+  } else if (velocitycheck != velocity) {
     velocity = velocitycheck;
-    velocityold = velocitynew;
     setBinaryLEDs(velocity);
   }
   
@@ -207,6 +178,7 @@ void loop() {
               (keypad.key[i].kchar + (octave * 12)) % 128,
               velocity
             );
+            setBinaryLEDs((keypad.key[i].kchar + (octave * 12)) % 128);
           }
         }
         
