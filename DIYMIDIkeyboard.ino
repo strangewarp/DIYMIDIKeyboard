@@ -1,6 +1,10 @@
 
+#include <EEPROM.h>
 #include <Keypad.h>
 #include <Potentiometer.h>
+
+#define CONFIG_VERSION "dk1"
+#define CONFIG_START 32
 
 const byte rows = 4;
 const byte cols = 8;
@@ -8,11 +12,24 @@ const byte cols = 8;
 const byte butrows = 4;
 const byte butcols = 4;
 
+struct settings {
+  byte data[14][4];
+  char vers[4];
+} saves = {
+  {
+    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
+    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
+    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
+    {0,0,0,0}, {0,0,0,0}
+  },
+  CONFIG_VERSION
+};
+
 byte rowpins[rows] = {23, 25, 27, 29};
 byte colpins[cols] = {39, 41, 43, 45, 47, 49, 51, 53};
 byte butrowpins[4] = {22, 24, 26, 28};
-byte butcolpins[4] = {30, 32, 34, 36};
-byte ledpins[8] = {38, 40, 42, 44, 46, 48, 50, 52};
+byte butcolpins[4] = {46, 48, 50, 52};
+byte ledpins[8] = {30, 32, 34, 36, 38, 40, 42, 44};
 
 byte octave = 0;
 byte channel = 0;
@@ -24,7 +41,6 @@ byte commandcheck = 0;
 byte velocitycheck = 0;
 
 byte activebutton = 0;
-byte saves[(butrows * butcols) - 2][4];
 byte saveload = 1;
 byte adjbutkey = 0;
 
@@ -61,15 +77,11 @@ void setup() {
     keydown[kd] = false;
   }
   
-  for (int sn = 0; sn < (butrows * butcols) - 2; sn++) {
-    for (int sv = 0; sv < 4; sv++) {
-      saves[sn][sv] = 0;
-    }
-  }
-  
   for (int lpin = 0; lpin < 8; lpin++) {
     pinMode(ledpins[lpin], OUTPUT);
   }
+  
+  loadConfig();
   
   octavepot.setSectors(10);
   channelpot.setSectors(16);
@@ -133,15 +145,16 @@ void loop() {
             adjbutkey = butkeypad.key[a].kchar - 2;
             setBinaryLEDs(adjbutkey);
             if (saveload == 0) {
-              saves[adjbutkey][0] = octave;
-              saves[adjbutkey][1] = channel;
-              saves[adjbutkey][2] = command;
-              saves[adjbutkey][3] = velocity;
+              saves.data[adjbutkey][0] = octave;
+              saves.data[adjbutkey][1] = channel;
+              saves.data[adjbutkey][2] = command;
+              saves.data[adjbutkey][3] = velocity;
+              saveConfig();
             } else if (saveload == 1) {
-              octave = saves[adjbutkey][0];
-              channel = saves[adjbutkey][1];
-              command = saves[adjbutkey][2];
-              velocity = saves[adjbutkey][3];
+              octave = saves.data[adjbutkey][0];
+              channel = saves.data[adjbutkey][1];
+              command = saves.data[adjbutkey][2];
+              velocity = saves.data[adjbutkey][3];
               octavecheck = octave;
               channelcheck = channel;
               commandcheck = command;
@@ -234,3 +247,29 @@ void setDecimalLEDs(int val) {
   }
 }
 
+void loadConfig() {
+  // To make sure there are settings, and they are YOURS!
+  // If nothing is found it will use the default settings.
+  if (//EEPROM.read(CONFIG_START + sizeof(saves) - 1) == saves.version_of_program[3] // this is '\0'
+  EEPROM.read(CONFIG_START + sizeof(saves) - 2) == saves.vers[2]
+  && EEPROM.read(CONFIG_START + sizeof(saves) - 3) == saves.vers[1]
+  && EEPROM.read(CONFIG_START + sizeof(saves) - 4) == saves.vers[0])
+  { // reads settings from EEPROM
+    for (unsigned int t=0; t<sizeof(saves); t++) {
+      *((char*)&saves + t) = EEPROM.read(CONFIG_START + t);
+    }
+  } else {
+    // settings aren't valid! will overwrite with default settings
+    saveConfig();
+  }
+}
+
+void saveConfig() {
+  for (unsigned int t = 0; t < sizeof(saves); t++) { // writes to EEPROM
+    EEPROM.write(CONFIG_START + t, *((char*)&saves + t));
+    // and verifies the data
+    if (EEPROM.read(CONFIG_START + t) != *((char*)&saves + t)) {
+      // error writing to EEPROM
+    }
+  }
+}
