@@ -6,12 +6,6 @@
 #define CONFIG_VERSION "dk1"
 #define CONFIG_START 32
 
-const byte rows = 4;
-const byte cols = 8;
-
-const byte butrows = 4;
-const byte butcols = 4;
-
 struct settings {
   byte data[14][4];
   char vers[4];
@@ -24,6 +18,12 @@ struct settings {
   },
   CONFIG_VERSION
 };
+
+const byte rows = 4;
+const byte cols = 8;
+
+const byte butrows = 4;
+const byte butcols = 4;
 
 byte rowpins[rows] = {23, 25, 27, 29};
 byte colpins[cols] = {39, 41, 43, 45, 47, 49, 51, 53};
@@ -39,6 +39,10 @@ byte octavecheck = 0;
 byte channelcheck = 0;
 byte commandcheck = 0;
 byte velocitycheck = 0;
+byte octavebus = 0;
+byte channelbus = 0;
+byte commandbus = 0;
+byte velocitybus = 0;
 
 byte activebutton = 0;
 byte saveload = 1;
@@ -105,17 +109,33 @@ void loop() {
   commandcheck = commandpot.getSector();
   velocitycheck = velocitypot.getSector();
   
-  if (octavecheck != octave) {
+  if (
+  (octavecheck != octave)
+  && (octavecheck != octavebus)
+  ) {
     octave = octavecheck;
+    octavebus = -1;
     setBinaryLEDs(octave);
-  } else if (channelcheck != channel) {
+  } else if (
+  (channelcheck != channel)
+  && (channelcheck != channelbus)
+  ) {
     channel = channelcheck;
+    channelbus = -1;
     setBinaryLEDs(channel);
-  } else if (commandcheck != command) {
+  } else if (
+  (commandcheck != command)
+  && (commandcheck != commandbus)
+  ) {
     command = commandcheck;
+    commandbus = -1;
     setDecimalLEDs(command);
-  } else if (velocitycheck != velocity) {
+  } else if (
+  (velocitycheck != velocity)
+  && (velocitycheck != velocitybus)
+  ) {
     velocity = velocitycheck;
+    velocitybus = -1;
     setBinaryLEDs(velocity);
   }
   
@@ -155,10 +175,10 @@ void loop() {
               channel = saves.data[adjbutkey][1];
               command = saves.data[adjbutkey][2];
               velocity = saves.data[adjbutkey][3];
-              octavecheck = octave;
-              channelcheck = channel;
-              commandcheck = command;
-              velocitycheck = velocity;
+              octavebus = octavecheck;
+              channelbus = channelcheck;
+              commandbus = commandcheck;
+              velocitybus = velocitycheck;
             }
           } else if (butkeypad.key[a].kchar == 0) {
             setBinaryLEDs(0);
@@ -273,3 +293,4 @@ void saveConfig() {
     }
   }
 }
+
