@@ -7,7 +7,7 @@
 #define CONFIG_START 32
 
 struct settings {
-  byte data[14][4];
+  char data[14][4];
   char vers[4];
 } saves = {
   {
@@ -27,9 +27,9 @@ const byte butcols = 4;
 
 byte rowpins[rows] = {23, 25, 27, 29};
 byte colpins[cols] = {39, 41, 43, 45, 47, 49, 51, 53};
-byte butrowpins[4] = {22, 24, 26, 28};
+byte butrowpins[4] = {38, 40, 42, 44};
 byte butcolpins[4] = {46, 48, 50, 52};
-byte ledpins[8] = {30, 32, 34, 36, 38, 40, 42, 44};
+byte ledpins[8] = {22, 24, 26, 28, 30, 32, 34, 36};
 
 byte octave = 0;
 byte channel = 0;
@@ -92,8 +92,8 @@ void setup() {
   commandpot.setSectors(8);
   velocitypot.setSectors(128);
   
-  butkeypad.setDebounceTime(700);
-  butkeypad.setHoldTime(1000);
+  butkeypad.setDebounceTime(100);
+  butkeypad.setHoldTime(1000000);
   
   keypad.setDebounceTime(0);
   keypad.setHoldTime(1000000);
@@ -122,14 +122,14 @@ void loop() {
   ) {
     channel = channelcheck;
     channelbus = -1;
-    setBinaryLEDs(channel);
+    setBinaryLEDs(128 + (command * 16) + channel);
   } else if (
   (commandcheck != command)
   && (commandcheck != commandbus)
   ) {
     command = commandcheck;
     commandbus = -1;
-    setDecimalLEDs(command);
+    setBinaryLEDs(128 + (command * 16) + channel);
   } else if (
   (velocitycheck != velocity)
   && (velocitycheck != velocitybus)
@@ -161,7 +161,7 @@ void loop() {
             }
           }
           
-          if (butkeypad.key[a].kchar > 1) {
+          if (butkeypad.key[a].kchar >= 2) {
             adjbutkey = butkeypad.key[a].kchar - 2;
             setBinaryLEDs(adjbutkey);
             if (saveload == 0) {
@@ -175,13 +175,13 @@ void loop() {
               channel = saves.data[adjbutkey][1];
               command = saves.data[adjbutkey][2];
               velocity = saves.data[adjbutkey][3];
-              octavebus = octavecheck;
-              channelbus = channelcheck;
-              commandbus = commandcheck;
-              velocitybus = velocitycheck;
             }
+            octavebus = octavecheck;
+            channelbus = channelcheck;
+            commandbus = commandcheck;
+            velocitybus = velocitycheck;
           } else if (butkeypad.key[a].kchar == 0) {
-            setBinaryLEDs(0);
+            setBinaryLEDs(255);
             saveload = 0;
           } else if (butkeypad.key[a].kchar == 1) {
             setBinaryLEDs(255);
@@ -247,7 +247,7 @@ void noteSend(byte cmd, byte note, byte velo) {
 void setBinaryLEDs(int val) {
   binval = 128;
   for (int bnum = 0; bnum < 8; bnum++) {
-    if (binval < val) {
+    if (binval <= val) {
       digitalWrite(ledpins[bnum], HIGH);
       val -= binval;
     } else {
