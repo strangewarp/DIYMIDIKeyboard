@@ -1,20 +1,20 @@
 
-#include <EEPROM.h>
-#include <Keypad.h>
-#include <Potentiometer.h>
+#include <EEPROM.h> // http://arduino.cc/en/Reference/EEPROM
+#include <Keypad.h> // http://playground.arduino.cc//Code/Keypad
+#include <Potentiometer.h> // http://playground.arduino.cc//Code/Potentiometer
 
-#define CONFIG_VERSION "dk1"
+#define CONFIG_VERSION "dk4"
 #define CONFIG_START 32
 
 struct settings {
-  char data[14][4];
+  char data[15][4];
   char vers[4];
 } saves = {
   {
-    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
-    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
-    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
-    {0,0,0,0}, {0,0,0,0}
+    {2,0,1,127}, {2,1,1,127}, {2,2,1,127}, {2,3,1,127},
+    {2,4,1,127}, {2,5,1,127}, {2,6,1,127}, {2,7,1,127},
+    {2,8,1,127}, {2,9,1,127}, {2,10,1,127}, {2,11,1,127},
+    {2,12,1,127}, {2,13,1,127}, {2,14,1,127}
   },
   CONFIG_VERSION
 };
@@ -30,6 +30,8 @@ byte colpins[cols] = {39, 41, 43, 45, 47, 49, 51, 53};
 byte butrowpins[4] = {38, 40, 42, 44};
 byte butcolpins[4] = {46, 48, 50, 52};
 byte ledpins[8] = {22, 24, 26, 28, 30, 32, 34, 36};
+byte saveledpin = 2;
+byte loadledpin = 3;
 
 byte octave = 0;
 byte channel = 0;
@@ -45,8 +47,10 @@ byte commandbus = 0;
 byte velocitybus = 0;
 
 byte activebutton = 0;
-byte saveload = 1;
+byte saveload = 1; // SAVE-LOAD mode tracking variable. 0 for save mode, 1 for load mode.
 byte adjbutkey = 0;
+int pulseval = 0;
+int pulseadj = 0;
 
 char keys[rows][cols] = {
   { 0, 1, 2, 3, 4, 5, 6, 7},
@@ -85,6 +89,9 @@ void setup() {
     pinMode(ledpins[lpin], OUTPUT);
   }
   
+  pinMode(saveledpin, OUTPUT);
+  pinMode(loadledpin, OUTPUT);
+  
   loadConfig();
   
   octavepot.setSectors(10);
@@ -92,7 +99,7 @@ void setup() {
   commandpot.setSectors(8);
   velocitypot.setSectors(128);
   
-  butkeypad.setDebounceTime(100);
+  butkeypad.setDebounceTime(20);
   butkeypad.setHoldTime(1000000);
   
   keypad.setDebounceTime(0);
@@ -161,9 +168,8 @@ void loop() {
             }
           }
           
-          if (butkeypad.key[a].kchar >= 2) {
-            adjbutkey = butkeypad.key[a].kchar - 2;
-            setBinaryLEDs(adjbutkey);
+          if (butkeypad.key[a].kchar >= 1) {
+            adjbutkey = butkeypad.key[a].kchar - 1;
             if (saveload == 0) {
               saves.data[adjbutkey][0] = octave;
               saves.data[adjbutkey][1] = channel;
@@ -180,12 +186,16 @@ void loop() {
             channelbus = channelcheck;
             commandbus = commandcheck;
             velocitybus = velocitycheck;
+            setBinaryLEDs(adjbutkey);
           } else if (butkeypad.key[a].kchar == 0) {
-            setBinaryLEDs(255);
-            saveload = 0;
-          } else if (butkeypad.key[a].kchar == 1) {
-            setBinaryLEDs(255);
-            saveload = 1;
+            saveload ^= 1;
+            if (saveload == 0) { // Light up SAVE-LED
+              digitalWrite(saveledpin, HIGH);
+              digitalWrite(loadledpin, LOW);
+            } else if (saveload == 1) { // Light up LOAD-LED
+              digitalWrite(saveledpin, LOW);
+              digitalWrite(loadledpin, HIGH);
+            }
           }
           
         }
@@ -193,6 +203,14 @@ void loop() {
       
     }
     
+  }
+  
+  pulseval = (pulseval + 1) % 31250;
+  pulseadj = round(pulseval / 123);
+  if (saveload == 0) { // Write the pulse value to SAVE-LED
+    analogWrite(saveledpin, pulseadj);
+  } else if (saveload == 1) { // Write the pulse value to LOAD-LED
+    analogWrite(loadledpin, pulseadj);
   }
   
   keypad.getKeys();
@@ -270,7 +288,7 @@ void setDecimalLEDs(int val) {
 void loadConfig() {
   // To make sure there are settings, and they are YOURS!
   // If nothing is found it will use the default settings.
-  if (//EEPROM.read(CONFIG_START + sizeof(saves) - 1) == saves.version_of_program[3] // this is '\0'
+  if (//EEPROM.read(CONFIG_START + sizeof(saves) - 1) == saves.vers[3] // this is '\0'
   EEPROM.read(CONFIG_START + sizeof(saves) - 2) == saves.vers[2]
   && EEPROM.read(CONFIG_START + sizeof(saves) - 3) == saves.vers[1]
   && EEPROM.read(CONFIG_START + sizeof(saves) - 4) == saves.vers[0])
