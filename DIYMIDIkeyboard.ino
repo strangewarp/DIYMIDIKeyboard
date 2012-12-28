@@ -3,18 +3,18 @@
 #include <Keypad.h> // http://playground.arduino.cc//Code/Keypad
 #include <Potentiometer.h> // http://playground.arduino.cc//Code/Potentiometer
 
-#define CONFIG_VERSION "dk4"
+#define CONFIG_VERSION "dk1"
 #define CONFIG_START 32
 
 struct settings {
-  char data[15][4];
+  char data[16][4];
   char vers[4];
 } saves = {
   {
     {2,0,1,127}, {2,1,1,127}, {2,2,1,127}, {2,3,1,127},
     {2,4,1,127}, {2,5,1,127}, {2,6,1,127}, {2,7,1,127},
     {2,8,1,127}, {2,9,1,127}, {2,10,1,127}, {2,11,1,127},
-    {2,12,1,127}, {2,13,1,127}, {2,14,1,127}
+    {2,12,1,127}, {2,13,1,127}, {2,14,1,127}, {2,15,1,127}
   },
   CONFIG_VERSION
 };
@@ -32,6 +32,7 @@ byte butcolpins[4] = {46, 48, 50, 52};
 byte ledpins[8] = {22, 24, 26, 28, 30, 32, 34, 36};
 byte saveledpin = 2;
 byte loadledpin = 3;
+byte slswitchpin = 4;
 
 byte octave = 0;
 byte channel = 0;
@@ -46,11 +47,12 @@ byte channelbus = 0;
 byte commandbus = 0;
 byte velocitybus = 0;
 
-byte activebutton = 0;
-byte saveload = 1; // SAVE-LOAD mode tracking variable. 0 for save mode, 1 for load mode.
+int saveload = LOW; // SAVE-LOAD mode tracking variable. LOW for save mode, HIGH for load mode. Set by digitalRead of slswitchpin
+byte butactive = 0;
 byte adjbutkey = 0;
-int pulseval = 0;
-int pulseadj = 0;
+byte pulseval = 0;
+int pulsedelay = 20;
+long prevmillis = 0;
 
 char keys[rows][cols] = {
   { 0, 1, 2, 3, 4, 5, 6, 7},
@@ -92,6 +94,8 @@ void setup() {
   pinMode(saveledpin, OUTPUT);
   pinMode(loadledpin, OUTPUT);
   
+  pinMode(slswitchpin, INPUT);
+  
   loadConfig();
   
   octavepot.setSectors(10);
@@ -99,7 +103,7 @@ void setup() {
   commandpot.setSectors(8);
   velocitypot.setSectors(128);
   
-  butkeypad.setDebounceTime(20);
+  butkeypad.setDebounceTime(0);
   butkeypad.setHoldTime(1000000);
   
   keypad.setDebounceTime(0);
@@ -146,71 +150,64 @@ void loop() {
     setBinaryLEDs(velocity);
   }
   
-  butkeypad.getKeys();
+  saveload = digitalRead(slswitchpin);
+  if (saveload == LOW) { // Light up SAVE-LED
+    pulseval = 150;
+    analogWrite(saveledpin, 150);
+    analogWrite(loadledpin, 0);
+  } else if (saveload == HIGH) { // Light up LOAD-LED
+    pulseval = 150;
+    analogWrite(saveledpin, 0);
+    analogWrite(loadledpin, 150);
+  }
+
+  butactive = butkeypad.getKey();
   
-  for (int a = 0; a < (butrows * butcols); a++) {
-    
-    if (butkeypad.key[a].kchar) {
+  if (butkeypad.kstate == PRESSED) {
+    if (butkeypad.stateChanged) {
       
-      if (butkeypad.key[a].kstate == PRESSED) {
-        if (butkeypad.key[a].stateChanged) {
-          
-          for (int kdnum = 0; kdnum < (rows * cols); kdnum++) {
-            if (keydown[kdnum] == true) {
-              keydown[kdnum] = false;
-              if (command == 1) {
-                noteSend(
-                  channel + 128,
-                  (keypad.key[kdnum].kchar + (octave * 12)) % 128,
-                  velocity
-                );
-              }
-            }
+      for (int kdnum = 0; kdnum < (rows * cols); kdnum++) {
+        if (keydown[kdnum] == true) {
+          keydown[kdnum] = false;
+          if (command == 1) {
+            noteSend(
+              channel + 128,
+              (keypad.key[kdnum].kchar + (octave * 12)) % 128,
+              velocity
+            );
           }
-          
-          if (butkeypad.key[a].kchar >= 1) {
-            adjbutkey = butkeypad.key[a].kchar - 1;
-            if (saveload == 0) {
-              saves.data[adjbutkey][0] = octave;
-              saves.data[adjbutkey][1] = channel;
-              saves.data[adjbutkey][2] = command;
-              saves.data[adjbutkey][3] = velocity;
-              saveConfig();
-            } else if (saveload == 1) {
-              octave = saves.data[adjbutkey][0];
-              channel = saves.data[adjbutkey][1];
-              command = saves.data[adjbutkey][2];
-              velocity = saves.data[adjbutkey][3];
-            }
-            octavebus = octavecheck;
-            channelbus = channelcheck;
-            commandbus = commandcheck;
-            velocitybus = velocitycheck;
-            setBinaryLEDs(adjbutkey);
-          } else if (butkeypad.key[a].kchar == 0) {
-            saveload ^= 1;
-            if (saveload == 0) { // Light up SAVE-LED
-              digitalWrite(saveledpin, HIGH);
-              digitalWrite(loadledpin, LOW);
-            } else if (saveload == 1) { // Light up LOAD-LED
-              digitalWrite(saveledpin, LOW);
-              digitalWrite(loadledpin, HIGH);
-            }
-          }
-          
         }
       }
       
+      if (saveload == LOW) {
+        saves.data[butkeypad.kchar][0] = octave;
+        saves.data[butkeypad.kchar][1] = channel;
+        saves.data[butkeypad.kchar][2] = command;
+        saves.data[butkeypad.kchar][3] = velocity;
+        saveConfig();
+      } else if (saveload == HIGH) {
+        octave = saves.data[butkeypad.kchar][0];
+        channel = saves.data[butkeypad.kchar][1];
+        command = saves.data[butkeypad.kchar][2];
+        velocity = saves.data[butkeypad.kchar][3];
+      }
+      octavebus = octavecheck;
+      channelbus = channelcheck;
+      commandbus = commandcheck;
+      velocitybus = velocitycheck;
+      setBinaryLEDs(adjbutkey);
+      
     }
-    
   }
   
-  pulseval = (pulseval + 1) % 31250;
-  pulseadj = round(pulseval / 123);
-  if (saveload == 0) { // Write the pulse value to SAVE-LED
-    analogWrite(saveledpin, pulseadj);
-  } else if (saveload == 1) { // Write the pulse value to LOAD-LED
-    analogWrite(loadledpin, pulseadj);
+  if ((millis() - pulsedelay) > prevmillis) { // Adjust the saveload LED's PWM pulsation, based on timing variables
+    prevmillis = millis();
+    pulseval = (pulseval + 2) % 255;
+    if (saveload == LOW) { // Write the pulse value to SAVE-LED
+      analogWrite(saveledpin, pulseval);
+    } else if (saveload == HIGH) { // Write the pulse value to LOAD-LED
+      analogWrite(loadledpin, pulseval);
+    }
   }
   
   keypad.getKeys();
@@ -272,16 +269,6 @@ void setBinaryLEDs(int val) {
       digitalWrite(ledpins[bnum], LOW);
     }
     binval /= 2;
-  }
-}
-
-void setDecimalLEDs(int val) {
-  for (int lnum = 0; lnum < 8; lnum++) {
-    if (lnum == (val % 8)) {
-      digitalWrite(ledpins[lnum], HIGH);
-    } else {
-      digitalWrite(ledpins[lnum], LOW);
-    }
   }
 }
 
