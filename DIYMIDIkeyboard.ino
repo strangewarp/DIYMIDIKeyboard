@@ -3,7 +3,7 @@
 #include <Keypad.h> // https://github.com/Nullkraft/Keypad
 #include <Potentiometer.h> // http://playground.arduino.cc//Code/Potentiometer
 
-#define CONFIG_VERSION "dk4"
+#define CONFIG_VERSION "dk5"
 #define CONFIG_START 32
 
 struct settings {
@@ -11,7 +11,7 @@ struct settings {
   char vers[4];
 } saves = {
   {
-    {2,0,1,127}, {2,1,1,127}, {2,2,1,127},
+    {4,1,1,127}, {2,1,1,127}, {2,2,1,127},
     {2,4,1,127}, {2,5,1,127}, {2,6,1,127},
     {2,8,1,127}, {2,9,1,127}, {2,10,1,127}
   },
@@ -69,7 +69,7 @@ char butkeys[butrows][butcols] = {
   { 7, 8, 9}
 };
 
-Keypad keypad = Keypad(makeKeymap(keys), rowpins, colpins, rows, cols);
+Keypad pianokeypad = Keypad(makeKeymap(keys), rowpins, colpins, rows, cols);
 
 Keypad butkeypad = Keypad(makeKeymap(butkeys), butrowpins, butcolpins, butrows, butcols);
 
@@ -107,8 +107,8 @@ void setup() {
   butkeypad.setDebounceTime(0);
   butkeypad.setHoldTime(1000000);
   
-  keypad.setDebounceTime(0);
-  keypad.setHoldTime(1000000);
+  pianokeypad.setDebounceTime(0);
+  pianokeypad.setHoldTime(1000000);
   
   Serial.begin(31250);
   
@@ -175,7 +175,7 @@ void loop() {
           if (command == 1) {
             noteSend(
               channel + 128,
-              ((keypad.key[kdnum].kchar - 1) + (octave * 12)) % 128,
+              ((pianokeypad.key[kdnum].kchar - 1) + (octave * 12)) % 128,
               velocity
             );
           }
@@ -224,17 +224,17 @@ void loop() {
     
   }
   
-  keypad.getKeys();
+  pianokeypad.getKeys();
   
   for (int i = 0; i < (rows * cols); i++) {
     
-    if (keypad.key[i].kchar) {
+    if (pianokeypad.key[i].kchar) {
       
-      adjnotekey = keypad.key[i].kchar - 1;
+      adjnotekey = pianokeypad.key[i].kchar - 1;
       
-      if (keypad.key[i].kstate == PRESSED) {
+      if (pianokeypad.key[i].kstate == PRESSED) {
         
-        if (keypad.key[i].stateChanged) {
+        if (pianokeypad.key[i].stateChanged) {
           if (keydown[i] == false) {
             keydown[i] = true;
             noteSend(
@@ -246,9 +246,9 @@ void loop() {
           }
         }
         
-      } else if (keypad.key[i].kstate == RELEASED) {
+      } else if (pianokeypad.key[i].kstate == RELEASED) {
         
-        if (keypad.key[i].stateChanged) {
+        if (pianokeypad.key[i].stateChanged) {
           if (keydown[i] == true) {
             keydown[i] = false;
             if (command == 1) {
