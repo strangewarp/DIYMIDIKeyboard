@@ -1,22 +1,24 @@
 
-#include <EEPROM.h> // http://arduino.cc/en/Reference/EEPROM
+// DIY MIDI Keyboard
+//
+// Circuit:
+// Arduino Mega + Salvaged Toy Keyboard.
+// Standard MIDI-OUT setup on TX/RX pins.
+// SPST switch -> ANALOG-IN "slswitchpin"
+// 5v, GND -> 10k potentiometers -> ANALOG-IN 0, 1, 2, 3
+// ledpins -> Binary LED pins (DIGITAL OUT) -> 1k resistors -> LEDs -> GND
+// saveledpin/loadledpin -> Save/Load LED pins (ANALOG OUT) -> 1k resistors -> two-color LED -> GND
+// keys -> rowpins x colpins -> salvaged piano keyboard (NO GND CONNECTION)
+// butkeys -> butrowpins x butcolpins -> simple button matrix (NO GND CONNECTION)
+//
+// Note: program will bug out if left plugged in for >49 days. Should work fine after a power-cycle though.
+
 #include <Keypad.h> // https://github.com/Nullkraft/Keypad
-#include <Potentiometer.h> // http://playground.arduino.cc//Code/Potentiometer
+#include <Potentiometer.h> // http://playground.arduino.cc/Code/Potentiometer
+#include <EEPROM.h> // http://arduino.cc/en/Reference/EEPROM
+#include "EEPROMAnything.h"
 
-#define CONFIG_VERSION "dk5"
-#define CONFIG_START 32
-
-struct settings {
-  byte data[9][4];
-  char vers[4];
-} saves = {
-  {
-    {4,1,1,127}, {2,1,1,127}, {2,2,1,127},
-    {2,4,1,127}, {2,5,1,127}, {2,6,1,127},
-    {2,8,1,127}, {2,9,1,127}, {2,10,1,127}
-  },
-  CONFIG_VERSION
-};
+const byte presets = 9; // Number of preset buttons to store in savedata. Must match up with contents of "butkeys"
 
 const byte rows = 4;
 const byte cols = 8;
@@ -24,14 +26,17 @@ const byte cols = 8;
 const byte butrows = 4;
 const byte butcols = 4;
 
+const unsigned int buttondebounce = 0;
+const unsigned int pianodebounce = 0;
+
 byte rowpins[rows] = {23, 25, 27, 29};
 byte colpins[cols] = {39, 41, 43, 45, 47, 49, 51, 53};
 byte butrowpins[3] = {38, 40, 42};
 byte butcolpins[3] = {48, 50, 52};
-byte ledpins[8] = {22, 24, 26, 28, 30, 32, 34, 36};
-byte saveledpin = 2;
-byte loadledpin = 3;
-byte slswitchpin = 4;
+const byte ledpins[8] = {22, 24, 26, 28, 30, 32, 34, 36};
+const byte saveledpin = 2;
+const byte loadledpin = 3;
+const byte slswitchpin = 4;
 
 byte octave = 0;
 byte channel = 0;
@@ -53,8 +58,8 @@ byte adjbutkey = 0;
 byte adjnotekey = 0;
 int pulseval = 0;
 int pulsedelay = 20;
-int pulseinc = 5;
-long prevmillis = millis();
+int pulseinc = 6;
+unsigned long prevmillis = millis(); // Tracks the milliseconds that have elapsed.
 
 char keys[rows][cols] = {
   { 1, 2, 3, 4, 5, 6, 7, 8},
@@ -68,6 +73,10 @@ char butkeys[butrows][butcols] = {
   { 4, 5, 6},
   { 7, 8, 9}
 };
+
+struct config_t {
+  byte p[presets][4];
+} pdata;
 
 Keypad pianokeypad = Keypad(makeKeymap(keys), rowpins, colpins, rows, cols);
 
@@ -97,18 +106,33 @@ void setup() {
   
   pinMode(slswitchpin, INPUT);
   
-  loadConfig();
-  
   octavepot.setSectors(10);
   channelpot.setSectors(16);
   commandpot.setSectors(8);
   velocitypot.setSectors(128);
   
-  butkeypad.setDebounceTime(0);
+  butkeypad.setDebounceTime(buttondebounce);
   butkeypad.setHoldTime(1000000);
   
-  pianokeypad.setDebounceTime(0);
+  pianokeypad.setDebounceTime(pianodebounce);
   pianokeypad.setHoldTime(1000000);
+  
+  EEPROM_readAnything(0, pdata);
+  
+  for (int pnum = 0; pnum < presets; pnum++) {
+    if (pdata.p[pnum][0] > 9) {
+      pdata.p[pnum][0] = 3;
+    }
+    if (pdata.p[pnum][1] > 15) {
+      pdata.p[pnum][1] = 0;
+    }
+    if (pdata.p[pnum][2] > 7) {
+      pdata.p[pnum][2] = 1;
+    }
+    if (pdata.p[pnum][3] > 127) {
+      pdata.p[pnum][3] = 127;
+    }
+  }
   
   Serial.begin(31250);
   
@@ -184,16 +208,16 @@ void loop() {
       
       adjbutkey = butkeypad.kchar - 1;
       if (saveload == LOW) {
-        saves.data[adjbutkey][0] = octave;
-        saves.data[adjbutkey][1] = channel;
-        saves.data[adjbutkey][2] = command;
-        saves.data[adjbutkey][3] = velocity;
-        saveConfig();
+        pdata.p[adjbutkey][0] = octave;
+        pdata.p[adjbutkey][1] = channel;
+        pdata.p[adjbutkey][2] = command;
+        pdata.p[adjbutkey][3] = velocity;
+        EEPROM_writeAnything(0, pdata);
       } else if (saveload == HIGH) {
-        octave = saves.data[adjbutkey][0];
-        channel = saves.data[adjbutkey][1];
-        command = saves.data[adjbutkey][2];
-        velocity = saves.data[adjbutkey][3];
+        octave = pdata.p[adjbutkey][0];
+        channel = pdata.p[adjbutkey][1];
+        command = pdata.p[adjbutkey][2];
+        velocity = pdata.p[adjbutkey][3];
       }
       octavebus = octavecheck;
       channelbus = channelcheck;
@@ -251,7 +275,7 @@ void loop() {
         if (pianokeypad.key[i].stateChanged) {
           if (keydown[i] == true) {
             keydown[i] = false;
-            if (command == 1) {
+            if (command == 1) { // If command-type is NOTEON, send a corresponding NOTEOFF on key-release
               noteSend(
                 channel + 128,
                 (adjnotekey + (octave * 12)) % 128,
@@ -285,33 +309,6 @@ void setBinaryLEDs(int val) {
       digitalWrite(ledpins[bnum], LOW);
     }
     binval /= 2;
-  }
-}
-
-void loadConfig() {
-  // To make sure there are settings, and they are YOURS!
-  // If nothing is found it will use the default settings.
-  if (//EEPROM.read(CONFIG_START + sizeof(saves) - 1) == saves.vers[3] // this is '\0'
-  EEPROM.read(CONFIG_START + sizeof(saves) - 2) == saves.vers[2]
-  && EEPROM.read(CONFIG_START + sizeof(saves) - 3) == saves.vers[1]
-  && EEPROM.read(CONFIG_START + sizeof(saves) - 4) == saves.vers[0])
-  { // reads settings from EEPROM
-    for (unsigned int t=0; t<sizeof(saves); t++) {
-      *((char*)&saves + t) = EEPROM.read(CONFIG_START + t);
-    }
-  } else {
-    // settings aren't valid! will overwrite with default settings
-    saveConfig();
-  }
-}
-
-void saveConfig() {
-  for (unsigned int t = 0; t < sizeof(saves); t++) { // writes to EEPROM
-    EEPROM.write(CONFIG_START + t, *((char*)&saves + t));
-    // and verifies the data
-    if (EEPROM.read(CONFIG_START + t) != *((char*)&saves + t)) {
-      // error writing to EEPROM
-    }
   }
 }
 
