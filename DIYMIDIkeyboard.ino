@@ -2,12 +2,14 @@
 // DIY MIDI Keyboard
 //
 // Circuit:
-// Arduino Mega + Salvaged Toy Keyboard.
-// Standard MIDI-OUT setup on TX/RX pins.
-// SPST switch -> ANALOG-IN "slswitchpin"
+// Arduino Mega + Salvaged Toy Keyboard or other button matrix. (yes, seriously)
+// 5v -> 220ohm resistor -> MIDI jack's pin 4
+// MIDI jack's pin 2 -> GND
+// MIDI jack's pin 5 -> TX1 pin
+// 5v -> 1k resistor -> (SPST switch -> GND) AND (ANALOG-IN "slswitchpin")
 // 5v, GND -> 10k potentiometers -> ANALOG-IN 0, 1, 2, 3
-// ledpins -> Binary LED pins (DIGITAL OUT) -> 1k resistors -> LEDs -> GND
-// saveledpin/loadledpin -> Save/Load LED pins (ANALOG OUT) -> 1k resistors -> two-color LED -> GND
+// ledpins -> 1k resistors -> LEDs -> GND
+// saveledpin/loadledpin -> 1k resistors -> two-color LED -> GND
 // keys -> rowpins x colpins -> salvaged piano keyboard (NO GND CONNECTION)
 // butkeys -> butrowpins x butcolpins -> simple button matrix (NO GND CONNECTION)
 //
@@ -146,29 +148,29 @@ void loop() {
   velocitycheck = velocitypot.getSector();
   
   if (
-  (octavecheck != octave)
-  && (octavecheck != octavebus)
+    (octavecheck != octave)
+    && (octavecheck != octavebus)
   ) {
     octave = octavecheck;
     octavebus = -1;
     setBinaryLEDs(octave);
   } else if (
-  (channelcheck != channel)
-  && (channelcheck != channelbus)
+    (channelcheck != channel)
+    && (channelcheck != channelbus)
   ) {
     channel = channelcheck;
     channelbus = -1;
     setBinaryLEDs(128 + (command * 16) + channel);
   } else if (
-  (commandcheck != command)
-  && (commandcheck != commandbus)
+    (commandcheck != command)
+    && (commandcheck != commandbus)
   ) {
     command = commandcheck;
     commandbus = -1;
     setBinaryLEDs(128 + (command * 16) + channel);
   } else if (
-  (velocitycheck != velocity)
-  && (velocitycheck != velocitybus)
+    (velocitycheck != velocity)
+    && (velocitycheck != velocitybus)
   ) {
     velocity = velocitycheck;
     velocitybus = -1;
@@ -233,8 +235,9 @@ void loop() {
     prevmillis = millis();
     
     pulseval += pulseinc;
-    if ((pulseval < 0)
-    || (pulseval > 255)
+    if (
+      (pulseval < 0)
+      || (pulseval > 255)
     ) {
       pulseinc *= -1;
       pulseval = max(0, min(255, pulseval));
