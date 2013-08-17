@@ -31,7 +31,7 @@ const byte cols = 8;
 const byte butrows = 4;
 const byte butcols = 4;
 
-const unsigned int buttondebounce = 0;
+const unsigned int buttondebounce = 100;
 const unsigned int pianodebounce = 0;
 
 byte rowpins[rows] = {23, 25, 27, 29};
@@ -58,7 +58,6 @@ byte velocitybus = 0;
 
 int saveload = LOW; // SAVE-LOAD mode tracking variable. LOW for save mode, HIGH for load mode. Set by digitalRead of slswitchpin
 int slnew = LOW; // Is used to compare the new saveload pin value to the previous iteration's saveload pin value
-byte butactive = 0;
 byte adjbutkey = 0;
 byte adjnotekey = 0;
 int pulseval = 0;
@@ -193,44 +192,59 @@ void loop() {
     }
   }
 
-  butactive = butkeypad.getKey();
+  butkeypad.getKeys();
   
-  if (butkeypad.kstate == PRESSED) {
-    if (butactive != NO_KEY) {
+  for (int i = 0; i < (butrows * butcols); i++) {
+    
+    if (butkeypad.key[i].kchar) {
       
-      for (int kdnum = 0; kdnum < (rows * cols); kdnum++) {
-        if (keydown[kdnum] == true) {
-          keydown[kdnum] = false;
-          if (command == 1) {
-            noteSend(
-              channel + 128,
-              constrain((pianokeypad.key[kdnum].kchar - 1) + (octave * 12) + noteoffset, 0, 127),
-              velocity
-            );
+      adjbutkey = butkeypad.key[i].kchar - 1;
+      
+      if (butkeypad.key[i].kstate == PRESSED) {
+        
+        if (butkeypad.key[i].stateChanged) {
+          
+          for (int kdnum = 0; kdnum <= 127; kdnum++) {
+            if (keydown[kdnum] == true) {
+              keydown[kdnum] = false;
+              if (command == 1) {
+                noteSend(
+                  channel + 128,
+                  constrain((pianokeypad.key[kdnum].kchar - 1) + (octave * 12) + noteoffset, 0, 127),
+                  velocity
+                );
+              }
+            }
           }
+          
+          adjbutkey = butkeypad.key[i].kchar - 1;
+          
+          if (saveload == LOW) {
+            pdata.p[adjbutkey][0] = octave;
+            pdata.p[adjbutkey][1] = channel;
+            pdata.p[adjbutkey][2] = command;
+            pdata.p[adjbutkey][3] = velocity;
+            EEPROM_writeAnything(0, pdata);
+          } else if (saveload == HIGH) {
+            octave = pdata.p[adjbutkey][0];
+            channel = pdata.p[adjbutkey][1];
+            command = pdata.p[adjbutkey][2];
+            velocity = pdata.p[adjbutkey][3];
+          }
+          
+          octavebus = octavecheck;
+          channelbus = channelcheck;
+          commandbus = commandcheck;
+          velocitybus = velocitycheck;
+          
+          setBinaryLEDs(adjbutkey);
+          
         }
+        
       }
-      
-      adjbutkey = butkeypad.kchar - 1;
-      if (saveload == LOW) {
-        pdata.p[adjbutkey][0] = octave;
-        pdata.p[adjbutkey][1] = channel;
-        pdata.p[adjbutkey][2] = command;
-        pdata.p[adjbutkey][3] = velocity;
-        EEPROM_writeAnything(0, pdata);
-      } else if (saveload == HIGH) {
-        octave = pdata.p[adjbutkey][0];
-        channel = pdata.p[adjbutkey][1];
-        command = pdata.p[adjbutkey][2];
-        velocity = pdata.p[adjbutkey][3];
-      }
-      octavebus = octavecheck;
-      channelbus = channelcheck;
-      commandbus = commandcheck;
-      velocitybus = velocitycheck;
-      setBinaryLEDs(butactive);
       
     }
+    
   }
   
   if ((millis() - pulsedelay) > prevmillis) { // Adjust the saveload LED's PWM pulsation, based on timing variables
