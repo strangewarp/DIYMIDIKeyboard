@@ -22,6 +22,9 @@
 
 const byte presets = 9; // Number of preset buttons to store in savedata. Must match up with contents of "butkeys"
 
+const byte noteoffset = -7; // Offset from C for bottom of key-range, in semitones
+const byte octavelimit = 9; // Number of octaves for the octave-dial to toggle through
+
 const byte rows = 4;
 const byte cols = 8;
 
@@ -108,7 +111,7 @@ void setup() {
   
   pinMode(slswitchpin, INPUT);
   
-  octavepot.setSectors(10);
+  octavepot.setSectors(octavelimit);
   channelpot.setSectors(16);
   commandpot.setSectors(8);
   velocitypot.setSectors(128);
@@ -122,7 +125,7 @@ void setup() {
   EEPROM_readAnything(0, pdata);
   
   for (int pnum = 0; pnum < presets; pnum++) {
-    if (pdata.p[pnum][0] > 9) {
+    if (pdata.p[pnum][0] >= octavelimit) {
       pdata.p[pnum][0] = 3;
     }
     if (pdata.p[pnum][1] > 15) {
@@ -201,7 +204,7 @@ void loop() {
           if (command == 1) {
             noteSend(
               channel + 128,
-              ((pianokeypad.key[kdnum].kchar - 1) + (octave * 12)) % 128,
+              constrain((pianokeypad.key[kdnum].kchar - 1) + (octave * 12) + noteoffset, 0, 127),
               velocity
             );
           }
@@ -266,7 +269,7 @@ void loop() {
             keydown[i] = true;
             noteSend(
               channel + (command * 16) + 128,
-              (adjnotekey + (octave * 12)) % 128,
+              constrain(adjnotekey + (octave * 12) + noteoffset, 0, 127),
               velocity
             );
             setBinaryLEDs((adjnotekey + (octave * 12)) % 128);
@@ -281,7 +284,7 @@ void loop() {
             if (command == 1) { // If command-type is NOTEON, send a corresponding NOTEOFF on key-release
               noteSend(
                 channel + 128,
-                (adjnotekey + (octave * 12)) % 128,
+                constrain(adjnotekey + (octave * 12) + noteoffset, 0, 127),
                 velocity
               );
             }
